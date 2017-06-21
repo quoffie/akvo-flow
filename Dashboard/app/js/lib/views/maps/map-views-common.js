@@ -1003,6 +1003,8 @@ FLOW.GeoshapeMapView = FLOW.View.extend({
     if (this.get('isPolygon') || this.get('isLineString') || this.get('isMultiPoint')) {
       var containerNode = this.get('element').getElementsByClassName('geoshapeMapContainer')[0];
       if (containerNode) {
+        //Clear the container first
+        containerNode.innerHTML = "";
         FLOW.drawGeoShape(containerNode, this.get('geoshape'));
       }
     }
