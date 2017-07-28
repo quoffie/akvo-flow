@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2012-2016 Stichting Akvo (Akvo Foundation)
+ *  Copyright (C) 2012-2017 Stichting Akvo (Akvo Foundation)
  *
  *  This file is part of Akvo FLOW.
  *
@@ -25,8 +25,6 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.inject.Inject;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Controller;
@@ -68,14 +66,11 @@ public class ActionRestService {
 
     private static final Logger logger = Logger.getLogger(ActionRestService.class.getName());
 
-    @Inject
-    private SurveyDAO surveyDao;
+    private SurveyDAO surveyDao = new SurveyDAO();
 
-    @Inject
-    private SurveyGroupDAO surveyGroupDao;
+    private SurveyGroupDAO surveyGroupDao = new SurveyGroupDAO();
 
-    @Inject
-    private QuestionDao questionDao;
+    private QuestionDao questionDao = new QuestionDao();
 
     @RequestMapping(method = RequestMethod.GET, value = "")
     @ResponseBody
@@ -359,22 +354,23 @@ public class ActionRestService {
 
         SurveyGroup savedProjectCopy = surveyGroupDao.save(projectCopy); // saves
 
-        List<Survey> surveys = surveyDao.listSurveysByGroup(targetId);
+        List<Survey> sourceSurveys = surveyDao.listSurveysByGroup(targetId);
 
         List<Long> surveysAncestorIds = new ArrayList<Long>(savedProjectCopy.getAncestorIds());
         surveysAncestorIds.add(savedProjectCopy.getKey().getId());
 
-        for (Survey survey : surveys) {
+        for (Survey sourceSurvey : sourceSurveys) {
             SurveyDto surveyDto = new SurveyDto();
-            surveyDto.setCode(survey.getCode());
-            surveyDto.setName(survey.getName());
-            surveyDto.setPath(projectCopy.getPath() + "/" + survey.getName());
+            surveyDto.setCode(sourceSurvey.getCode());
+            surveyDto.setName(sourceSurvey.getName());
+            surveyDto.setPath(projectCopy.getPath() + "/" + sourceSurvey.getName());
             surveyDto.setSurveyGroupId(savedProjectCopy.getKey().getId());
-            Survey surveyCopy = SurveyUtils.copySurvey(survey, surveyDto);
+            Survey surveyCopy = SurveyUtils.copySurvey(sourceSurvey, surveyDto);
             surveyCopy.setSurveyGroupId(savedProjectCopy.getKey().getId());
-            survey.setAncestorIds(surveysAncestorIds);
+            sourceSurvey.setAncestorIds(surveysAncestorIds);
             long copyId = surveyDao.save(surveyCopy).getKey().getId();
-            if (survey.getKey().getId() == savedProjectCopy.getNewLocaleSurveyId()) {
+            if (isRegistrationFormId(sourceSurvey.getKey().getId(),
+                    projectSource.getNewLocaleSurveyId())) {
                 // original was the registration survey for its survey group
                 savedProjectCopy.setNewLocaleSurveyId(copyId); // fix it
                 surveyGroupDao.save(savedProjectCopy);
@@ -382,5 +378,11 @@ public class ActionRestService {
         }
         return "success";
 
+    }
+
+    private static boolean isRegistrationFormId(Long sourceFormId,
+            Long sourceProjectRegistrationFormId) {
+        return sourceFormId != null && sourceProjectRegistrationFormId != null
+                && sourceFormId.equals(sourceProjectRegistrationFormId);
     }
 }

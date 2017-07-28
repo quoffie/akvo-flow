@@ -492,6 +492,10 @@ FLOW.NavigationView = Em.View.extend({
   templateName: 'application/navigation',
   selectedBinding: 'controller.selected',
 
+  showMapsButton: function () {
+      return FLOW.Env.showMapsTab;
+  }.property('FLOW.Env.showMapsTab'),
+
   NavItemView: Ember.View.extend({
     tagName: 'li',
     classNameBindings: 'isActive:current navItem'.w(),
@@ -782,7 +786,7 @@ FLOW.DatasubnavView = FLOW.View.extend({
     }.property(),
 
     showDataApprovalButton: function () {
-        return FLOW.Env.enableDataApproval;
+        return FLOW.Env.enableDataApproval && FLOW.permControl.get('canManageDataAppoval');
     }.property(),
   })
 });

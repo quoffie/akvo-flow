@@ -16,11 +16,11 @@
 
 
 THIS_SCRIPT="$0"
-DASHBOARD_HOME="$(cd `dirname "$THIS_SCRIPT"`/.. && pwd)"
+DASHBOARD_HOME="$(cd $(dirname "$THIS_SCRIPT")/.. && pwd)"
 
 function exit_if_homebrew_not_installed
 {
-    if [[ -z `command -v brew` ]]; then
+    if [[ -z $(command -v brew) ]]; then
         echo '## Homebrew not installed -- see http://brew.sh'
         exit 1
     else
@@ -34,7 +34,7 @@ function ensure_homebrew_package_installed
     _PACKAGE_NAME="$1"
     _PACKAGE_VERSION="$2"
 
-    INSTALLED_PACKAGE="`brew list --versions $_PACKAGE_NAME`"
+    INSTALLED_PACKAGE=$(brew list --versions $_PACKAGE_NAME)
 
     if [[ -z "$INSTALLED_PACKAGE" ]]; then
         printf ">> Installing $_PACKAGE_NAME...\n"
@@ -46,7 +46,7 @@ function ensure_homebrew_package_installed
             printf ">> Upgrading $_PACKAGE_NAME...\n"
             brew upgrade $_PACKAGE_NAME
         else
-            printf ">> Expected package installed: $INSTALLED_PACKAGE\n"
+            printf "Expected package installed: $INSTALLED_PACKAGE\n"
         fi
     fi
 }
@@ -55,11 +55,11 @@ function ensure_build_tools_are_installed
 {
     echo '>> Updating homebrew...'
     brew update
-    echo '>> Installing build tools...'
+    printf "\n>> Installing build tools...\n"
     ensure_homebrew_package_installed leiningen
     ensure_homebrew_package_installed ruby-build
     ensure_homebrew_package_installed rbenv
-    echo '>> Checking for outdated packages...'
+    printf "\n>> Checking for outdated packages...\n"
     brew outdated
     echo '>> Cleaning up...'
     brew cleanup
@@ -67,11 +67,19 @@ function ensure_build_tools_are_installed
     brew list --versions
 }
 
+function switch_to_ruby_version
+{
+    _EXPECTED_RUBY_VERSION="$1"
+
+    rbenv shell $_EXPECTED_RUBY_VERSION
+    rbenv rehash
+}
+
 function ensure_ruby_version_installed_is
 {
     _EXPECTED_RUBY_VERSION="$1"
 
-    echo ">> Initialising rbenv..."
+    printf "\n>> Initialising rbenv...\n"
     eval "$(rbenv init -)"
 
     if [[ -z $(rbenv versions | grep $_EXPECTED_RUBY_VERSION) ]]; then
@@ -79,7 +87,11 @@ function ensure_ruby_version_installed_is
         rbenv install $_EXPECTED_RUBY_VERSION
     fi
 
-    echo '>> Expected Ruby version installed at:'
+    printf ">> Expected Ruby version [$_EXPECTED_RUBY_VERSION] is installed:\n"
+    rbenv versions
+    switch_to_ruby_version $_EXPECTED_RUBY_VERSION
+
+    printf ">> Expected Ruby version installed at:\n"
     rbenv which ruby
 }
 
@@ -106,10 +118,51 @@ function use_local_ruby_version
         rbenv local
     fi
 
-    rbenv rehash
+    printf ">> Current Ruby version is: "
+    switch_to_ruby_version $_EXPECTED_RUBY_VERSION
     ruby --version
+}
+
+function ensure_gem_is_installed
+{
+    _GEM_NAME="$1"
+    _GEM_VERSION="$2"
+
+    EXPECTED_GEM_IS_INSTALLED=$(gem list -i $_GEM_NAME -v $_GEM_VERSION)
+
+    if [[ "$EXPECTED_GEM_IS_INSTALLED" = "false" ]]; then
+        printf ">> Gem $_GEM_NAME $_GEM_VERSION not installed\n"
+        gem install $_GEM_NAME -v $_GEM_VERSION
+    fi
+
+    if [[ "$EXPECTED_GEM_IS_INSTALLED" = "false" ]]; then
+        printf "## Error: Unable to install gem $_GEM_NAME version $_GEM_VERSION\n"
+        exit 1
+    else
+        printf ">> Expected gem is installed: $_GEM_NAME $_GEM_VERSION\n"
+    fi
+}
+
+function ensure_build_dependencies_are_installed
+{
+    printf "\n>> Current gem system version: $(gem --version)\n"
+    echo '>> Updating gem system...'
+    gem update --system
+    printf ">> Current gem system version: $(gem --version)\n"
+    printf "\n>> Installing gems for building the Dashboard\n"
+    ensure_gem_is_installed bundler 1.15.3
+    ensure_gem_is_installed json 2.1.0
+    printf "\n>> Checking for outdated gems...\n"
+    gem outdated
+    echo '>> Upgrading gems...'
+    gem update
+    echo '>> Cleaning up'
+    gem cleanup
+    printf "\n>> Installed gems"
+    gem list
 }
 
 exit_if_homebrew_not_installed
 ensure_build_tools_are_installed
-use_local_ruby_version "2.4.0"
+use_local_ruby_version "2.4.1"
+ensure_build_dependencies_are_installed

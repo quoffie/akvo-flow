@@ -177,7 +177,6 @@ FLOW.Survey = FLOW.BaseModel.extend({
 
 FLOW.QuestionGroup = FLOW.BaseModel.extend({
   order: DS.attr('number'),
-  description: DS.attr('string'),
   name: DS.attr('string'),
   path: DS.attr('string'),
   code: DS.attr('string'),
@@ -223,9 +222,6 @@ FLOW.Question = FLOW.BaseModel.extend({
     defaultValue: false
   }),
   immutable: DS.attr('boolean', {
-    defaultValue: false
-  }),
-  isName: DS.attr('boolean', {
     defaultValue: false
   }),
   mandatoryFlag: DS.attr('boolean', {
