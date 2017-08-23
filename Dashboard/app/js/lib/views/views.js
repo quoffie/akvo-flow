@@ -543,10 +543,12 @@ Ember.Select.reopen({
   attributeBindings: ['size']
 });
 
-
+Ember.TextField.reopen({
+  attributeBindings: ["required"]
+})
 FLOW.DateField = Ember.TextField.extend({
   minDate: true,
-
+  
   didInsertElement: function () {
     this._super();
 

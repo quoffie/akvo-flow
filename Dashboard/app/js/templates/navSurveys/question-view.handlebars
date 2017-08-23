@@ -7,7 +7,7 @@
     {{#if view.questionValidationFailure }}
       <span style="color:red">{{t _question_over_500_chars_header}}</span>
       {{/if}}
-      {{view Ember.TextField valueBinding="view.text" size=100 }}</label>
+      {{view Ember.TextField  required="required" valueBinding="view.text" size=100}}</label>
     <label>{{t _question_help_tooltip}}: <span class="fadedText">({{t _optional}})</span>
     {{#if view.questionTooltipValidationFailure }}
       <span style="color:red">{{t _tooltip_over_500_chars_header}}</span>
