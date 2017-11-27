@@ -455,6 +455,7 @@ public class GraphicalSurveySummaryExporter extends SurveySummaryExporter {
             throws FileNotFoundException, IOException {
         //Set properties on the Workbook. Need the non-streaming interface for this.
         //TODO: will this increase memory usage? We could GC the big data structures first.
+        log.debug("Starting setting of properties ");
         FileInputStream fis = new FileInputStream(fileName);
         XSSFWorkbook workbook = new XSSFWorkbook(fis);
         POIXMLProperties props = workbook.getProperties();
@@ -473,6 +474,7 @@ public class GraphicalSurveySummaryExporter extends SurveySummaryExporter {
         FileOutputStream fos = new FileOutputStream(fileName);
         workbook.write(fos);
         fos.close();
+        log.debug("Ending setting of properties ");
     }
 
     private void addColumnWarnings(Workbook wb) {
