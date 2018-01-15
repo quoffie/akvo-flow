@@ -642,24 +642,20 @@ FLOW.DateField = Ember.TextField.extend({
       });
     } else {
       // datepickers with all dates
-      $("#from_date, #from_date02").datepicker({
-        dateFormat: 'yy-mm-dd',
-        defaultDate: new Date(),
-        numberOfMonths: 1,
-        onSelect: function (selectedDate) {
-          $("#to_date, #to_date02").datepicker("option", "minDate", selectedDate);
-          FLOW.dateControl.set('fromDate', selectedDate);
-        }
+      $("input.from").on("click", function () {
+        $(this).datepicker({
+          dateFormat: 'yy-mm-dd',
+          defaultDate: new Date(),
+          numberOfMonths: 1,
+        }).datepicker('show');
       });
 
-      $("#to_date, #to_date02").datepicker({
-        dateFormat: 'yy-mm-dd',
-        defaultDate: new Date(),
-        numberOfMonths: 1,
-        onSelect: function (selectedDate) {
-          $("#from_date, #from_date02").datepicker("option", "maxDate", selectedDate);
-          FLOW.dateControl.set('toDate', selectedDate);
-        }
+      $("input.to").on("click",function () {
+        $(this).datepicker({
+          dateFormat: 'yy-mm-dd',
+          defaultDate: new Date(),
+          numberOfMonths: 1,
+        }).datepicker('show');
       });
     }
   }
