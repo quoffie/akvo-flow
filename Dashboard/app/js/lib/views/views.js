@@ -642,20 +642,10 @@ FLOW.DateField = Ember.TextField.extend({
       });
     } else {
       // datepickers with all dates
-      $("input.from").on("click", function () {
-        $(this).datepicker({
-          dateFormat: 'yy-mm-dd',
-          defaultDate: new Date(),
-          numberOfMonths: 1,
-        }).datepicker('show');
-      });
-
-      $("input.to").on("click",function () {
-        $(this).datepicker({
-          dateFormat: 'yy-mm-dd',
-          defaultDate: new Date(),
-          numberOfMonths: 1,
-        }).datepicker('show');
+      this.$().datepicker({
+        dateFormat: 'yy-mm-dd',
+        defaultDate: new Date(),
+        numberOfMonths: 1
       });
     }
   }
