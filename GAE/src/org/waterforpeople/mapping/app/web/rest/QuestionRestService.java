@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 @Controller
 @RequestMapping("/questions")
@@ -198,17 +199,24 @@ public class QuestionRestService {
     // delete question by id
     @RequestMapping(method = RequestMethod.DELETE, value = "/{id}")
     @ResponseBody
-    public Map<String, RestStatusDto> deleteQuestionById(
+    public Map<String, Object> deleteQuestionById(
             @PathVariable("id") Long questionId) {
-        final Map<String, RestStatusDto> response = new HashMap<String, RestStatusDto>();
-        Question q = questionDao.getByKey(questionId);
+        final Map<String, Object> response = new HashMap<String, Object>();
         RestStatusDto statusDto = null;
+        List<QuestionDto> modified = null;
         statusDto = new RestStatusDto();
         statusDto.setStatus("failed");
         statusDto.setMessage("_cannot_delete");
 
         // check if question exists in the datastore
+        Question q = questionDao.getByKey(questionId);
         if (q != null) {
+            //  we need to move any questions with greater order
+            modified = adjustOrderAt(q.getOrder() + 1, -1, q.getQuestionGroupId());
+            
+            // deletion can take a long time, when there are many dependent options&translations
+            // so queue it in the background
+            // TODO we could flag it as being deleted until then (order=0?)
             try {
                 TaskOptions deleteQuestionTask = TaskOptions.Builder
                         .withUrl("/app_worker/surveytask")
@@ -216,6 +224,7 @@ public class QuestionRestService {
                                 SurveyTaskRequest.DELETE_QUESTION_ACTION)
                         .param(SurveyTaskRequest.ID_PARAM, questionId.toString());
                 QueueFactory.getQueue("deletequeue").add(deleteQuestionTask);
+                
                 statusDto.setStatus("ok");
                 statusDto.setMessage("deleted");
             } catch (Exception e) {
@@ -225,6 +234,7 @@ public class QuestionRestService {
         }
 
         response.put("meta", statusDto);
+        response.put("questions", modified);
         return response;
     }
 
@@ -237,6 +247,7 @@ public class QuestionRestService {
         final QuestionDto questionDto = payLoad.getQuestion();
         final Map<String, Object> response = new HashMap<String, Object>();
         QuestionDto dto = null;
+        List<QuestionDto> modified = null;
 
         RestStatusDto statusDto = new RestStatusDto();
         statusDto.setStatus("failed");
@@ -253,25 +264,45 @@ public class QuestionRestService {
                 q = questionDao.getByKey(keyId);
                 // if we find the question, update it's properties
                 if (q != null) {
+                    int oldOrder = q.getOrder();
+                    long oldGroup = q.getQuestionGroupId();
                     // copy the properties, except the createdDateTime property,
                     // because it is set in the Dao.
                     BeanUtils.copyProperties(questionDto, q, new String[] {
                             "createdDateTime", "type", "optionList"
                     });
-                    if (questionDto.getType() != null)
-                        q.setType(Question.Type.valueOf(questionDto.getType()
-                                .toString()));
-
+                    // Different enumerated types are not auto-translated
+                    if (questionDto.getType() != null) {
+                        q.setType(Question.Type.valueOf(questionDto.getType().toString()));
+                    }
+                    
+                    // Check if it moved
+                    long newGroup = q.getQuestionGroupId();
+                    int newOrder = q.getOrder();
+                    if (oldGroup == newGroup) { //up or down?
+                        if (newOrder > oldOrder) {//moved down - push intervening up
+                            modified = adjustOrderBetween(oldOrder + 1, newOrder, -1, oldGroup);
+                        } else
+                        if (newOrder < oldOrder) { //moved down - bump intervening up
+                            modified = adjustOrderBetween(newOrder, oldOrder - 1,  1, oldGroup);
+                        }
+                    } else { //works like a delete plus an insert
+                        modified = adjustOrderAt(oldOrder + 1, -1, oldGroup);
+                        modified.addAll(adjustOrderAt(questionDto.getOrder(), 1, newGroup));
+                        
+                    }
                     q = questionDao.save(q);
 
                     dto = QuestionDtoMapper.transform(q);
                     statusDto.setStatus("ok");
                     statusDto.setMessage("");
+                    
                 }
             }
         }
         response.put("meta", statusDto);
-        response.put("question", dto);
+        response.put("question", dto); //TODO should it be inside modified instead?
+        response.put("questions", modified);
         return response;
     }
 
@@ -285,6 +316,7 @@ public class QuestionRestService {
         final Map<String, Object> response = new HashMap<String, Object>();
         List<QuestionOptionDto> qoResults = new ArrayList<QuestionOptionDto>();
         QuestionDto dto = null;
+        List<QuestionDto> modified = null;
 
         RestStatusDto statusDto = new RestStatusDto();
         statusDto.setStatus("failed");
@@ -294,13 +326,17 @@ public class QuestionRestService {
         // server will respond with 400 Bad Request
         if (questionDto != null) {
             Question q = null;
-
+            // we will use the supplied order value, but first
+            //  we need to move any questions at and above the indicated order
+            modified = adjustOrderAt(questionDto.getOrder(), 1, questionDto.getQuestionGroupId());
+            
             if (questionDto.getSourceId() == null) {
                 q = newQuestion(questionDto);
             } else {
                 q = copyQuestion(questionDto);
             }
             dto = QuestionDtoMapper.transform(q);
+            //TODO move dto into modified?
             statusDto.setStatus("ok");
             statusDto.setMessage("");
 
@@ -308,7 +344,9 @@ public class QuestionRestService {
         }
         response.put("meta", statusDto);
         response.put("questionOptions", qoResults);
-        response.put("question", dto);
+        response.put("question", dto); //Just the question created
+        response.put("questions", modified); //other, modified questions
+        
 
         return response;
     }
@@ -378,8 +416,7 @@ public class QuestionRestService {
                 "createdDateTime", "type"
         });
         if (dto.getType() != null) {
-            q.setType(Question.Type.valueOf(dto.getType()
-                    .toString()));
+            q.setType(Question.Type.valueOf(dto.getType().toString()));
         }
         final Question result = questionDao.save(q);
         return result;
@@ -400,6 +437,29 @@ public class QuestionRestService {
             return qoResults;
         }
         return Collections.emptyList();
+    }
+
+    // Adjust all necessary order fields
+    List<QuestionDto> adjustOrderAt(int o, int increment, long groupId){
+        return adjustOrderBetween(o, Integer.MAX_VALUE, increment, groupId);
+    }
+    
+    // Adjust all necessary order fields
+    List<QuestionDto> adjustOrderBetween(int o1, int o2, int increment, long groupId){
+        // update question order
+        TreeMap<Integer, Question> groupQs = questionDao.listQuestionsByQuestionGroup(
+                groupId, false);
+        List<QuestionDto> modifiedQuestions = new ArrayList<>();
+        if (groupQs != null) {
+            for (Question gq : groupQs.values()) {
+                if (gq.getOrder() >= o1 && gq.getOrder() <= o2) {
+                    gq.setOrder(gq.getOrder() + increment);
+                    questionDao.save(gq);
+                    modifiedQuestions.add(QuestionDtoMapper.transform(gq));
+                }
+            }
+        }
+        return modifiedQuestions;
     }
 
 }
